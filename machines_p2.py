@@ -6,6 +6,7 @@ import time
 
 class P2():
     def __init__(self, board, available_pieces):
+        random.seed(42)  # 고정된 난수 시퀀스 설정
         self.pieces = [(i, j, k, l) for i in range(2) for j in range(2) for k in range(2) for l in range(2)]  # All 16 pieces
         self.board = board # Include piece indices. 0:empty / 1~16:piece
         self.available_pieces = available_pieces # Currently available pieces in a tuple type (e.g. (1, 0, 1, 0))
@@ -17,9 +18,11 @@ class P2():
         """
         time.sleep(0.5)  # 시간 소모 확인용 (완성 후 삭제 가능)
 
-        # 특성 중복이 많은 말을 선택
-        selected_piece = min(self.available_pieces, key=lambda piece: len(set(piece)))
+        # 특성 중복이 많은 말들 중에서 무작위로 하나 선택
+        min_len = min(len(set(piece)) for piece in self.available_pieces)
+        candidates = [piece for piece in self.available_pieces if len(set(piece)) == min_len]
 
+        selected_piece = random.choice(candidates)  # 후보 중 하나를 랜덤으로 선택
         return selected_piece
 
     def place_piece(self, selected_piece):
@@ -28,6 +31,7 @@ class P2():
         """
         # 사용할 수 있는 위치
         available_locs = [(row, col) for row, col in product(range(4), range(4)) if self.board[row][col] == 0]
+        random.shuffle(available_locs)  # 위치를 랜덤하게 섞음
 
         # selected_piece를 인덱스로 변환
         piece_index = self.pieces.index(selected_piece) + 1  # 1-based index로 변환

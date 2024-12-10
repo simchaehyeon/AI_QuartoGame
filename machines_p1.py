@@ -1,133 +1,228 @@
 import numpy as np
-import random
-from itertools import product
-import time
 
 class P1():
     def __init__(self, board, available_pieces):
         self.pieces = [(i, j, k, l) for i in range(2) for j in range(2) for k in range(2) for l in range(2)]
         self.board = board
         self.available_pieces = available_pieces
-        self.first_place = True
-    
+
     def select_piece(self):
+        """
+        상대방에게 줄 말을 선택합니다.
+        미니맥스 알고리즘을 사용하여 상대방의 승리 가능성을 최소화하는 말을 선택합니다.
+        """
         best_piece = None
-        best_score = float('inf')
+        min_score = float('inf')
 
         for piece in self.available_pieces:
-            score = self.minimax(self.board, piece, depth=2, is_maximizing=False)
-            if score < best_score:
-                best_score = score
+            # 미니맥스를 사용하여 상대방의 점수를 계산
+            score = self.minimax_select(piece, depth=3, is_maximizing=False)
+
+            # 최소 점수를 유발하는 말을 선택
+            if score < min_score:
+                min_score = score
                 best_piece = piece
 
         return best_piece
 
     def place_piece(self, selected_piece):
-        if self.first_place:
-            # 첫 번째 말 놓을 때는 무작위로 선택
-            self.first_place = False  # 첫 번째 선택을 완료했으므로 이후에는 기존 방식으로
-            empty_cells = [(row, col) for row, col in product(range(4), range(4)) if self.board[row][col] == 0]
-            return random.choice(empty_cells)
-        
-        else:
-            best_move = None
-            best_score = float('-inf')
+        """
+        주어진 말을 보드에 배치합니다.
+        미니맥스 알고리즘을 사용하여 최적의 위치를 선택합니다.
+        """
+        best_move = None
+        max_score = float('-inf')
 
-            for row, col in product(range(4), range(4)):
-                if self.board[row][col] == 0:
-                    temp_board = self.board.copy()
-                    temp_board[row][col] = self.pieces.index(selected_piece) + 1
+        for row in range(4):
+            for col in range(4):
+                if self.board[row][col] == 0:  # 빈 칸이라면
+                    # 미니맥스를 사용하여 점수를 계산
+                    self.board[row][col] = self.pieces.index(selected_piece) + 1
+                    score = self.minimax_place(self.board, depth=3, is_maximizing=False)
+                    self.board[row][col] = 0  # 배치를 되돌림
 
-                    score = self.minimax(temp_board, selected_piece, depth=2, is_maximizing=False)
-                    if score > best_score:
-                        best_score = score
+                    # 최대 점수를 유발하는 위치를 선택
+                    if score > max_score:
+                        max_score = score
                         best_move = (row, col)
 
-            return best_move
-    
-    def minimax(self, board, piece, depth, is_maximizing, alpha=float('-inf'), beta=float('inf')):
-        if depth == 0 or self.check_win(board):
-            return self.evaluate_board(board)
+        return best_move
 
-        if is_maximizing:  # p1의 턴
+    def minimax_select(self, piece, depth, is_maximizing):
+        """
+        미니맥스 알고리즘 (select_piece용).
+        - piece: 현재 고려 중인 말
+        - depth: 탐색 깊이 제한
+        - is_maximizing: 최대화 플레이어 여부
+        """
+        if depth == 0 or self.check_win(self.board):
+            return self.evaluate(self.board)
+
+        if is_maximizing:
             max_eval = float('-inf')
-            for row, col in product(range(4), range(4)):
-                if board[row][col] == 0:  # 빈 칸만 탐색
-                    temp_board = board.copy()
-                    temp_board[row][col] = self.pieces.index(piece) + 1
-
-                    eval = self.minimax(temp_board, piece, depth - 1, False, alpha, beta)
-                    max_eval = max(max_eval, eval)
-                    alpha = max(alpha, eval)  # 알파 업데이트
-
-                # 베타보다 알파가 크면 더 이상 탐색하지 않음
-                    if beta <= alpha:
-                        break
+            for row in range(4):
+                for col in range(4):
+                    if self.board[row][col] == 0:
+                        self.board[row][col] = self.pieces.index(piece) + 1
+                        eval_score = self.minimax_select(piece, depth - 1, False)
+                        max_eval = max(max_eval, eval_score)
+                        self.board[row][col] = 0  # 배치를 되돌림
             return max_eval
-        else:  # p2의 턴
+        else:
             min_eval = float('inf')
-            for row, col in product(range(4), range(4)):
-                if board[row][col] == 0:
-                    temp_board = board.copy()
-                    temp_board[row][col] = self.pieces.index(piece) + 1
-
-                    eval = self.minimax(temp_board, piece, depth - 1, True, alpha, beta)
-                    min_eval = min(min_eval, eval)
-                    beta = min(beta, eval)  # 베타 업데이트
-
-                # 알파보다 베타가 작거나 같으면 더 이상 탐색하지 않음
-                    if beta <= alpha:
-                        break
+            for row in range(4):
+                for col in range(4):
+                    if self.board[row][col] == 0:
+                        self.board[row][col] = -1  # 임시 배치 (상대방 말)
+                        eval_score = self.minimax_select(piece, depth - 1, True)
+                        min_eval = min(min_eval, eval_score)
+                        self.board[row][col] = 0  # 배치를 되돌림
             return min_eval
 
-    
-    def evaluate_board(self, board):
+    def minimax_place(self, board, depth, is_maximizing):
+        """
+        미니맥스 알고리즘 (place_piece용).
+        - board: 현재 보드 상태
+        - depth: 탐색 깊이 제한
+        - is_maximizing: 최대화 플레이어 여부
+        """
+        if depth == 0 or self.check_win(board):
+            return self.evaluate(board)
 
-        if self.check_win(board):
-            return 100
+        if is_maximizing:
+            max_eval = float('-inf')
+            for row in range(4):
+                for col in range(4):
+                    if board[row][col] == 0:
+                        board[row][col] = -1  # 임시 배치 (플레이어 말)
+                        eval_score = self.minimax_place(board, depth - 1, False)
+                        max_eval = max(max_eval, eval_score)
+                        board[row][col] = 0  # 배치를 되돌림
+            return max_eval
+        else:
+            min_eval = float('inf')
+            for row in range(4):
+                for col in range(4):
+                    if board[row][col] == 0:
+                        board[row][col] = -1  # 임시 배치 (상대방 말)
+                        eval_score = self.minimax_place(board, depth - 1, True)
+                        min_eval = min(min_eval, eval_score)
+                        board[row][col] = 0  # 배치를 되돌림
+            return min_eval
 
+    def evaluate(self, board):
+        """
+        현재 보드 상태를 평가하여 점수를 반환합니다.
+        """
         score = 0
-        for line in self.get_all_lines(board):
-            characteristics = [self.pieces[piece_idx - 1] for piece_idx in line if piece_idx > 0]
 
-            for i in range(4):
-                if len(set([characteristics[j][i] for j in range(len(characteristics))])) == 1:
-                    score += 10
+        # 가로와 세로 줄 평가
+        for i in range(4):
+            row = [board[i][j] for j in range(4) if board[i][j] != 0]
+            col = [board[j][i] for j in range(4) if board[j][i] != 0]
+            score += self.line_score(row)
+            score += self.line_score(col)
+
+        # 대각선 평가
+        diag1 = [board[i][i] for i in range(4) if board[i][i] != 0]
+        diag2 = [board[i][3-i] for i in range(4) if board[i][3-i] != 0]
+        score += self.line_score(diag1)
+        score += self.line_score(diag2)
+
+        # 2x2 사각형 평가
+        for r in range(3):
+            for c in range(3):
+                subgrid = [board[r][c], board[r][c+1], board[r+1][c], board[r+1][c+1]]
+                subgrid = [idx for idx in subgrid if idx != 0]
+                score += self.square_score(subgrid)
 
         return score
 
+    def line_score(self, line):
+        """
+        한 줄에서 동일한 속성이 얼마나 많은지 기반으로 점수를 계산합니다.
+        """
+        if len(line) < 2:
+            return 0
 
-    def check_win(self, board):
-    # 모든 라인(가로, 세로, 대각선, 2x2 서브그리드)을 가져옴
-        lines = self.get_all_lines(board)
+        attributes = np.array([self.pieces[idx-1] for idx in line])  # 말의 속성 가져오기
+        score = 0
 
-        for line in lines:
-        # 0(빈 칸)이 포함된 줄은 건너뜀
-            if any(piece_idx == 0 for piece_idx in line):
-                continue
+        for i in range(4):  
+            if len(set(attributes[:, i])) == 1:  
+                score += len(line) * 10  
 
-        # 라인의 말들을 가져옴
-            pieces = [self.pieces[piece_idx - 1] for piece_idx in line]
+        return score
 
-        # 각 특성별로 공통 속성이 있는지 확인 (0: 첫 번째 특성, 1: 두 번째, ...)
-            for i in range(4):
-                if all(piece[i] == pieces[0][i] for piece in pieces):  # i번째 속성이 동일한지 확인
-                    return True  # 승리 조건 충족
+    def square_score(self, subgrid):
+        """
+        2x2 사각형에서 동일한 속성이 얼마나 많은지 기반으로 점수를 계산합니다.
+        """
+        if len(subgrid) < 4:
+            return 0
 
-        return False  # 승리 조건을 만족하지 않음
+        attributes = np.array([self.pieces[idx-1] for idx in subgrid])
+        score = 0
 
-    def get_all_lines(self, board):
-        lines = []
+        for i in range(4): 
+            if len(set(attributes[:, i])) == 1: 
+                score += 50  
+
+        return score
+
+    def check_win(self, board=None):
+        """
+        현재 보드 상태에서 승리 조건을 확인합니다.
+        - 가로/세로/대각선/2x2 사각형에서 동일한 속성이 있는지 확인합니다.
+        """
+        if board is None:
+            board = self.board
+
+        # 가로와 세로 승리 조건 확인
         for i in range(4):
-            lines.append([board[i][j] for j in range(4)])  # 가로
-            lines.append([board[j][i] for j in range(4)])  # 세로
-        lines.append([board[i][i] for i in range(4)])  # 대각 1
-        lines.append([board[i][3 - i] for i in range(4)])  # 대각 2
+            row = [board[i][j] for j in range(4) if board[i][j] != 0]
+            col = [board[j][i] for j in range(4) if board[j][i] != 0]
+            if self.is_winning_line(row) or self.is_winning_line(col):
+                return True
 
-        # 2x2검사
+        # 대각선 승리 조건 확인
+        diag1 = [board[i][i] for i in range(4) if board[i][i] != 0]
+        diag2 = [board[i][3 - i] for i in range(4) if board[i][3 - i] != 0]
+        if self.is_winning_line(diag1) or self.is_winning_line(diag2):
+            return True
+
+        # 2x2 사각형 승리 조건 확인
         for r in range(3):
             for c in range(3):
                 subgrid = [board[r][c], board[r][c + 1], board[r + 1][c], board[r + 1][c + 1]]
-                lines.append(subgrid)
+                subgrid = [idx for idx in subgrid if idx != 0]  # 빈 칸 제거
+                if self.is_winning_square(subgrid):
+                    return True
 
-        return lines
+        return False
+
+    def is_winning_line(self, line):
+        """
+        한 줄(가로, 세로, 대각선)이 승리 조건을 충족하는지 확인합니다.
+        """
+        if len(line) < 4:
+            return False
+
+        attributes = np.array([self.pieces[idx - 1] for idx in line])  # 말 속성 가져오기
+        for i in range(4):
+            if len(set(attributes[:, i])) == 1:  # 모든 속성이 동일하면 승리
+                return True
+        return False
+
+    def is_winning_square(self, subgrid):
+        """
+        2x2 사각형이 승리 조건을 충족하는지 확인합니다.
+        """
+        if len(subgrid) < 4:
+            return False
+
+        attributes = np.array([self.pieces[idx - 1] for idx in subgrid])  # 말 속성 가져오기
+        for i in range(4): 
+            if len(set(attributes[:, i])) == 1:  # 모든 속성이 동일하면 승리
+                return True
+        return False

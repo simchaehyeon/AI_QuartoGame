@@ -1,6 +1,7 @@
 import numpy as np
 
 class P2():
+    turn_count = 0  # 턴을 추적하는 변수
     def __init__(self, board, available_pieces):
         """
         P1 클래스 초기화
@@ -11,7 +12,7 @@ class P2():
         self.attributes = np.array(self.pieces)  # 속성을 NumPy 배열로 캐싱
         self.board = board
         self.available_pieces = available_pieces
-        self.turn_count = 0  # 턴을 추적하는 변수
+        
 
     def select_piece(self):
         """
@@ -55,7 +56,7 @@ class P2():
         # 1. 즉시 승리 가능한 수 확인
         winning_move = self.find_immediate_winning_move(piece_index)
         if winning_move is not None:
-            self.turn_count += 1
+            P2.turn_count += 1
             return winning_move
 
         # 2. 즉시 승리가 불가능하면 미니맥스 탐색
@@ -78,7 +79,7 @@ class P2():
                         max_score = score
                         best_move = (row, col)
 
-        self.turn_count += 1  # 턴 진행
+        P2.turn_count += 1  # 턴 진행
         return best_move
 
     def opponent_can_win_next_turn(self, piece):
@@ -118,9 +119,9 @@ class P2():
         """
         턴 수에 따라 탐색 깊이를 동적으로 조정
         """
-        if self.turn_count < 3:   # 초반
+        if P2.turn_count < 3:   # 초반
             return 5
-        elif self.turn_count < 6: # 중반
+        elif P2.turn_count < 5: # 중반
             return 6
         else:                     # 후반
             return 7

@@ -1,6 +1,7 @@
 import numpy as np
 
 class P1():
+    turn_count = 0
     def __init__(self, board, available_pieces):
         """
         P1 클래스 초기화
@@ -11,7 +12,6 @@ class P1():
         self.attributes = np.array(self.pieces)  # 속성을 NumPy 배열로 캐싱
         self.board = board
         self.available_pieces = available_pieces
-        self.turn_count = 0  # 턴을 추적하는 변수
 
     def select_piece(self):
         """
@@ -20,6 +20,7 @@ class P1():
         - 미니맥스 + 알파-베타 가지치기를 사용합니다.
         """
         depth = self.adjust_depth()
+
 
         # 먼저, 상대방이 바로 다음 턴에 이 말로 승리 가능한지 체크하여 그런 말은 제외
         safe_pieces = []
@@ -50,18 +51,22 @@ class P1():
         - 바로 놓아서 이길 수 있다면 그 수를 즉시 둡니다.
         - 그렇지 않다면 미니맥스 + 알파-베타 가지치기를 사용합니다.
         """
+        
+        P1.turn_count += 1
+        
         piece_index = self.pieces.index(selected_piece) + 1
 
         # 1. 즉시 승리 가능한 수 확인
         winning_move = self.find_immediate_winning_move(piece_index)
         if winning_move is not None:
-            self.turn_count += 1
+            
             return winning_move
 
         # 2. 즉시 승리가 불가능하면 미니맥스 탐색
         best_move = None
         max_score = float('-inf')
         depth = self.adjust_depth()
+
 
         for row in range(4):
             for col in range(4):
@@ -78,7 +83,7 @@ class P1():
                         max_score = score
                         best_move = (row, col)
 
-        self.turn_count += 1  # 턴 진행
+        
         return best_move
 
     def opponent_can_win_next_turn(self, piece):
@@ -116,14 +121,16 @@ class P1():
 
     def adjust_depth(self):
         """
-        턴 수에 따라 탐색 깊이를 동적으로 조정
+        턴 수와 게임 상태에 따라 탐색 깊이를 동적으로 조정
         """
-        if self.turn_count < 3:   # 초반
+        
+        if P1.turn_count < 3: # 초반
             return 5
-        elif self.turn_count < 6: # 중반
+        elif P1.turn_count < 5: # 중반
             return 6
         else:                     # 후반
             return 7
+
 
     def minimax_select(self, piece, depth, alpha, beta, is_maximizing):
         """
@@ -170,8 +177,8 @@ class P1():
         미니맥스(알파-베타 가지치기) 알고리즘 (place_piece용).
         board: 현재 보드 상태
         depth: 탐색 깊이 제한
-        alpha, beta: 알파-베타
-        is_maximizing: 플레이어 여부
+        alpha, beta: 알파-베타 파라미터
+        is_maximizing: 최대화 플레이어 여부
         """
         if depth == 0 or self.check_win(board):
             return self.evaluate(board)

@@ -1,141 +1,228 @@
 import numpy as np
-import random
-from itertools import product
-
-import time
 
 class P2():
     def __init__(self, board, available_pieces):
-        random.seed(42)  # 고정된 난수 시퀀스 설정
-        self.pieces = [(i, j, k, l) for i in range(2) for j in range(2) for k in range(2) for l in range(2)]  # All 16 pieces
-        self.board = board # Include piece indices. 0:empty / 1~16:piece
-        self.available_pieces = available_pieces # Currently available pieces in a tuple type (e.g. (1, 0, 1, 0))
-    
+        self.pieces = [(i, j, k, l) for i in range(2) for j in range(2) for k in range(2) for l in range(2)]
+        self.board = board
+        self.available_pieces = available_pieces
+
     def select_piece(self):
         """
-        상대방(P1)이 다음 턴에 선택하도록 '전략적으로 약한 말'을 고릅니다.
-        특성이 중복된 말을 우선 선택하여 상대방이 전략을 세우기 어렵게 만듭니다.
+        상대방에게 줄 말을 선택합니다.
+        미니맥스 알고리즘을 사용하여 상대방의 승리 가능성을 최소화하는 말을 선택합니다.
         """
-        time.sleep(0.5)  # 시간 소모 확인용 (완성 후 삭제 가능)
+        best_piece = None
+        min_score = float('inf')
 
-        # 특성 중복이 많은 말들 중에서 무작위로 하나 선택
-        min_len = min(len(set(piece)) for piece in self.available_pieces)
-        candidates = [piece for piece in self.available_pieces if len(set(piece)) == min_len]
+        for piece in self.available_pieces:
+            # 미니맥스를 사용하여 상대방의 점수를 계산
+            score = self.minimax_select(piece, depth=3, is_maximizing=False)
 
-        selected_piece = random.choice(candidates)  # 후보 중 하나를 랜덤으로 선택
-        return selected_piece
+            # 최소 점수를 유발하는 말을 선택
+            if score < min_score:
+                min_score = score
+                best_piece = piece
+
+        return best_piece
 
     def place_piece(self, selected_piece):
         """
-        selected_piece: 상대방이 선택한 말 (예: (1, 0, 1, 0))
+        주어진 말을 보드에 배치합니다.
+        미니맥스 알고리즘을 사용하여 최적의 위치를 선택합니다.
         """
-        # 사용할 수 있는 위치
-        available_locs = [(row, col) for row, col in product(range(4), range(4)) if self.board[row][col] == 0]
-        random.shuffle(available_locs)  # 위치를 랜덤하게 섞음
+        best_move = None
+        max_score = float('-inf')
 
-        # selected_piece를 인덱스로 변환
-        piece_index = self.pieces.index(selected_piece) + 1  # 1-based index로 변환
+        for row in range(4):
+            for col in range(4):
+                if self.board[row][col] == 0:  # 빈 칸이라면
+                    # 미니맥스를 사용하여 점수를 계산
+                    self.board[row][col] = self.pieces.index(selected_piece) + 1
+                    score = self.minimax_place(self.board, depth=3, is_maximizing=False)
+                    self.board[row][col] = 0  # 배치를 되돌림
 
-        # 1. 이길 수 있는 위치가 있으면 우선적으로 그 위치 선택
-        for loc in available_locs:
-            temp_board = np.copy(self.board)
-            temp_board[loc[0]][loc[1]] = piece_index  # 인덱스를 보드에 저장
-            if self.check_win(temp_board, loc):
-                return loc
+                    # 최대 점수를 유발하는 위치를 선택
+                    if score > max_score:
+                        max_score = score
+                        best_move = (row, col)
 
-        # 2. 상대방의 승리를 방지하기 위한 위치 선택
-        for loc in available_locs:
-            temp_board = np.copy(self.board)
-            temp_board[loc[0]][loc[1]] = piece_index
-            if self.prevent_opponent_win(temp_board, loc):
-                return loc
+        return best_move
 
-        # 3. 이도 저도 아니면 랜덤 위치 선택
-        return random.choice(available_locs)
+    def minimax_select(self, piece, depth, is_maximizing):
+        """
+        미니맥스 알고리즘 (select_piece용).
+        - piece: 현재 고려 중인 말
+        - depth: 탐색 깊이 제한
+        - is_maximizing: 최대화 플레이어 여부
+        """
+        if depth == 0 or self.check_win(self.board):
+            return self.evaluate(self.board)
 
-    def check_win(self, board, loc):
-        row, col = loc
-        for attr in range(4):  # 속성 0~3 반복
-            # 가로
-            row_line = [board[row][c] for c in range(4)]
-            if all(row_line) and self.check_line_win(row_line):
+        if is_maximizing:
+            max_eval = float('-inf')
+            for row in range(4):
+                for col in range(4):
+                    if self.board[row][col] == 0:
+                        self.board[row][col] = self.pieces.index(piece) + 1
+                        eval_score = self.minimax_select(piece, depth - 1, False)
+                        max_eval = max(max_eval, eval_score)
+                        self.board[row][col] = 0  # 배치를 되돌림
+            return max_eval
+        else:
+            min_eval = float('inf')
+            for row in range(4):
+                for col in range(4):
+                    if self.board[row][col] == 0:
+                        self.board[row][col] = -1  # 임시 배치 (상대방 말)
+                        eval_score = self.minimax_select(piece, depth - 1, True)
+                        min_eval = min(min_eval, eval_score)
+                        self.board[row][col] = 0  # 배치를 되돌림
+            return min_eval
+
+    def minimax_place(self, board, depth, is_maximizing):
+        """
+        미니맥스 알고리즘 (place_piece용).
+        - board: 현재 보드 상태
+        - depth: 탐색 깊이 제한
+        - is_maximizing: 최대화 플레이어 여부
+        """
+        if depth == 0 or self.check_win(board):
+            return self.evaluate(board)
+
+        if is_maximizing:
+            max_eval = float('-inf')
+            for row in range(4):
+                for col in range(4):
+                    if board[row][col] == 0:
+                        board[row][col] = -1  # 임시 배치 (플레이어 말)
+                        eval_score = self.minimax_place(board, depth - 1, False)
+                        max_eval = max(max_eval, eval_score)
+                        board[row][col] = 0  # 배치를 되돌림
+            return max_eval
+        else:
+            min_eval = float('inf')
+            for row in range(4):
+                for col in range(4):
+                    if board[row][col] == 0:
+                        board[row][col] = -1  # 임시 배치 (상대방 말)
+                        eval_score = self.minimax_place(board, depth - 1, True)
+                        min_eval = min(min_eval, eval_score)
+                        board[row][col] = 0  # 배치를 되돌림
+            return min_eval
+
+    def evaluate(self, board):
+        """
+        현재 보드 상태를 평가하여 점수를 반환합니다.
+        """
+        score = 0
+
+        # 가로와 세로 줄 평가
+        for i in range(4):
+            row = [board[i][j] for j in range(4) if board[i][j] != 0]
+            col = [board[j][i] for j in range(4) if board[j][i] != 0]
+            score += self.line_score(row)
+            score += self.line_score(col)
+
+        # 대각선 평가
+        diag1 = [board[i][i] for i in range(4) if board[i][i] != 0]
+        diag2 = [board[i][3-i] for i in range(4) if board[i][3-i] != 0]
+        score += self.line_score(diag1)
+        score += self.line_score(diag2)
+
+        # 2x2 사각형 평가
+        for r in range(3):
+            for c in range(3):
+                subgrid = [board[r][c], board[r][c+1], board[r+1][c], board[r+1][c+1]]
+                subgrid = [idx for idx in subgrid if idx != 0]
+                score += self.square_score(subgrid)
+
+        return score
+
+    def line_score(self, line):
+        """
+        한 줄에서 동일한 속성이 얼마나 많은지 기반으로 점수를 계산합니다.
+        """
+        if len(line) < 2:
+            return 0
+
+        attributes = np.array([self.pieces[idx-1] for idx in line])  # 말의 속성 가져오기
+        score = 0
+
+        for i in range(4):  
+            if len(set(attributes[:, i])) == 1:  
+                score += len(line) * 10  
+
+        return score
+
+    def square_score(self, subgrid):
+        """
+        2x2 사각형에서 동일한 속성이 얼마나 많은지 기반으로 점수를 계산합니다.
+        """
+        if len(subgrid) < 4:
+            return 0
+
+        attributes = np.array([self.pieces[idx-1] for idx in subgrid])
+        score = 0
+
+        for i in range(4): 
+            if len(set(attributes[:, i])) == 1: 
+                score += 50  
+
+        return score
+
+    def check_win(self, board=None):
+        """
+        현재 보드 상태에서 승리 조건을 확인합니다.
+        - 가로/세로/대각선/2x2 사각형에서 동일한 속성이 있는지 확인합니다.
+        """
+        if board is None:
+            board = self.board
+
+        # 가로와 세로 승리 조건 확인
+        for i in range(4):
+            row = [board[i][j] for j in range(4) if board[i][j] != 0]
+            col = [board[j][i] for j in range(4) if board[j][i] != 0]
+            if self.is_winning_line(row) or self.is_winning_line(col):
                 return True
 
-            # 세로
-            col_line = [board[r][col] for r in range(4)]
-            if all(col_line) and self.check_line_win(col_line):
-                return True
+        # 대각선 승리 조건 확인
+        diag1 = [board[i][i] for i in range(4) if board[i][i] != 0]
+        diag2 = [board[i][3 - i] for i in range(4) if board[i][3 - i] != 0]
+        if self.is_winning_line(diag1) or self.is_winning_line(diag2):
+            return True
 
-        # 대각선 체크
-        if row == col:  # 좌상단 -> 우하단
-            diag1 = [board[i][i] for i in range(4)]
-            if all(diag1) and self.check_line_win(diag1):
-                return True
-
-        if row + col == 3:  # 좌하단 -> 우상단
-            diag2 = [board[i][3 - i] for i in range(4)]
-            if all(diag2) and self.check_line_win(diag2):
-                return True
+        # 2x2 사각형 승리 조건 확인
+        for r in range(3):
+            for c in range(3):
+                subgrid = [board[r][c], board[r][c + 1], board[r + 1][c], board[r + 1][c + 1]]
+                subgrid = [idx for idx in subgrid if idx != 0]  # 빈 칸 제거
+                if self.is_winning_square(subgrid):
+                    return True
 
         return False
 
-    def check_line_win(self, line):
+    def is_winning_line(self, line):
         """
-        하나의 라인(행, 열, 대각선)이 승리 조건을 만족하는지 확인.
+        한 줄(가로, 세로, 대각선)이 승리 조건을 충족하는지 확인합니다.
         """
-        # 조건: 한 라인에 동일한 특성이 완성될 때
-        return all(cell != 0 and cell == line[0] for cell in line)
+        if len(line) < 4:
+            return False
 
-    def prevent_opponent_win(self, board, loc):
-        """
-        Prevents the opponent from winning by evaluating potential board states.
-        """
-        row, col = loc
-
-        # Check rows, columns, and diagonals
-        for attr in range(4):
-            # Row
-            row_line = [board[row][c] for c in range(4)]
-            if len(row_line) > 0 and self.is_opponent_winning(row_line, attr):
+        attributes = np.array([self.pieces[idx - 1] for idx in line])  # 말 속성 가져오기
+        for i in range(4):
+            if len(set(attributes[:, i])) == 1:  # 모든 속성이 동일하면 승리
                 return True
-
-            # Column
-            col_line = [board[r][col] for r in range(4)]
-            if len(col_line) > 0 and self.is_opponent_winning(col_line, attr):
-                return True
-
-        # Diagonals
-        if row == col:  # Left-to-right diagonal
-            diag1 = [board[i][i] for i in range(4)]
-            if len(diag1) > 0 and self.is_opponent_winning(diag1, attr):
-                return True
-
-        if row + col == 3:  # Right-to-left diagonal
-            diag2 = [board[i][3 - i] for i in range(4)]
-            if len(diag2) > 0 and self.is_opponent_winning(diag2, attr):
-                return True
-
         return False
 
-    def is_opponent_winning(self, line, attr):
+    def is_winning_square(self, subgrid):
         """
-        Checks if the opponent is in a winning position based on a line and attribute.
+        2x2 사각형이 승리 조건을 충족하는지 확인합니다.
         """
-        pieces = [self.get_piece_attributes(piece_index) for piece_index in line]
-        # 상대방이 이길 수 있는지 확인
-        return all(piece and piece[attr] for piece in pieces if piece is not None)
+        if len(subgrid) < 4:
+            return False
 
-    def get_piece_attributes(self, piece_index):
-        """
-        Converts a piece index on the board to its attribute tuple.
-        """
-        if piece_index == 0:
-            return None  # Empty space
-        return self.pieces[piece_index - 1]  # Convert 1-based index to 0-based
-
-    #def is_opponent_winning(self, line):
-        """
-        상대방이 승리할 수 있는 패턴인지 확인.
-        """
-        # 0이 하나이고 나머지가 동일한 특성으로 채워져 있을 때
-        #return list(line).count(0) == 1 and len(set(line) - {0}) == 1
+        attributes = np.array([self.pieces[idx - 1] for idx in subgrid])  # 말 속성 가져오기
+        for i in range(4): 
+            if len(set(attributes[:, i])) == 1:  # 모든 속성이 동일하면 승리
+                return True
+        return False
